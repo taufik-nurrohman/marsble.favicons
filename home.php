@@ -38,7 +38,7 @@
         </div>
 
         <div class="help">
-            <a class="mb mb-default" href="/?ref=faviconsHome">Back to Marsble</a>
+            <a class="mb mb-default" href="https://www.marsble.com/?ref=faviconsHome">Back to Marsble</a>
         </div>
     </div>
     <!-- /.errors -->
