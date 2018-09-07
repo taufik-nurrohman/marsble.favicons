@@ -14,9 +14,13 @@ GET `https://favicons.marsble.com/:domain`
 
 Output
 
-![Marsble](https://favicons.marsble.com/marsble.com)
+![Marsble](https://favicons.marsble.com/marsble.com) \| ![GitHub](https://favicons.marsble.com/github.com)
 
-![GitHub](https://favicons.marsble.com/github.com)
+## Misc
+
+GET `https://favicons.marsble.com/marsble.com?raw`
+GET `https://favicons.marsble.com/marsble.com?base64`
+GET `https://favicons.marsble.com/marsble.com?debug`
 
 ## Installation
 
