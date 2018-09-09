@@ -19,7 +19,11 @@ Output
 ## Misc
 
 GET `https://favicons.marsble.com/marsble.com?raw`
+
 GET `https://favicons.marsble.com/marsble.com?base64`
+
+GET `https://favicons.marsble.com/marsble.com?ssl`
+
 GET `https://favicons.marsble.com/marsble.com?debug`
 
 ## Installation
