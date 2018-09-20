@@ -1,0 +1,22 @@
+version: "2"
+
+services:
+    web:
+        image: nginx:latest
+        ports:
+            - "6010:80"
+        volumes:
+            - ./web:/web
+            - ./nginx.conf:/etc/nginx/conf.d/default.conf
+        networks:
+            - imgpx-network
+    php:
+        image: php:7.2-fpm
+        volumes:
+            - ./web:/web
+        networks:
+            - favicons-network
+
+networks:
+    favicons-network:
+        driver: bridge

@@ -24,11 +24,11 @@ function removehttp($url)
 
 if ( is_home() ) {
 
-    require dirname( __DIR__ ) . '/home.php';
+    require dirname( __FILE__ ) . '/home.php';
 
 } else {
 
-    require dirname(  __DIR__ ) . '/class-favicons.php';
+    require dirname(  __FILE__ ) . '/class-favicons.php';
 
     $favicon = new Favicons;
     $url = removehttp($_SERVER['REQUEST_URI']);
