@@ -19,7 +19,7 @@ class Favicons
 {
     public $url;
     public $default = 'favicon_default.ico'; // Set default favicon
-    public $expires = 300; // 5 minutes
+    public $expires = 86400; // 1 day
     public $version = '1.1';
     public $type = 'x-icon';
     public $userAgent = 'MarsbleFavicons';
