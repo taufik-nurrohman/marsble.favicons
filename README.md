@@ -13,10 +13,12 @@ Usage
 GET `https://favicons.marsble.com/:domain`
 ~~~
 
+**Example:**
+
  - [https://favicons.marsble.com/marsble.com](https://favicons.marsble.com/marsble.com)
  - [https://favicons.marsble.com/github.com](https://favicons.marsble.com/github.com)
 
-**Output:**
+**Result:**
 
 ![Marsble](https://favicons.marsble.com/marsble.com) &middot; ![GitHub](https://favicons.marsble.com/github.com)
 
