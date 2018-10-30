@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Favicons
  * Proxying favicon from a domain name
@@ -12,96 +13,154 @@
  * @copyright 2018 Marsble
  */
 
-// Debuging
-error_reporting(0);
+class Favicons {
 
-class Favicons
-{
-    public $url;
-    public $default = 'favicon_default.ico'; // Set default favicon
-    public $expires = 86400; // 1 day
-    public $version = '1.1';
-    public $type = 'x-icon';
+    const version = '1.2';
+
+    public $domain = null;
+    public $favicon = 'favicon_default.ico'; // Set default favicon
+    public $expires = 86400; // 1 Day
     public $userAgent = 'MarsbleFavicons';
+    public $debugMode = false;
 
-    function __construct()
-    {
-        // Set the content type
-        if ( isset($_GET['raw'] ) || isset($_GET['base64'] ) || isset($_GET['debug'] ) ) {
-            header('Content-Type: text/html');
+    protected $contentType = 'text/plain';
+    protected $faviconURL = null;
+    protected $blob = null;
+
+    public function __construct($domain) {
+        $this->domain = $domain;
+    }
+
+    protected function cURL($url) {
+        $c = curl_init($url);
+        curl_setopt_array($c, [
+            CURLOPT_FAILONERROR => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS => 2,
+            CURLOPT_USERAGENT => $this->userAgent . '/' . self::version, // Custom User Agent
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPGET => true,
+            CURLOPT_TIMEOUT => 15
+        ]);
+        $result = curl_exec($c);
+        curl_close($c);
+        return $result;
+    }
+
+    protected function removeProtocols($domain) {
+        if (strpos($domain, '://') !== false) {
+            return preg_replace('#^(?:f|ht)tps?://#', "", $domain);
+        }
+        return $domain;
+    }
+
+    protected function useSSL() {
+        return !empty($_GET['ssl']);
+    }
+
+    public function process() {
+
+        $domain = $this->removeProtocols($this->domain);
+
+        if ($this->useSSL()) {
+            $prefix = 'https://';
+            $suffix = '?ssl=1';
         } else {
-            header("Content-Type: image/$this->type");
+            $prefix = 'http://';
+            $suffix = "";
         }
 
-        // Set cache expires
-        header("Cache-Control: public, max-age=$this->expires");
-    }
-
-    /**
-     * Add HTTP
-     */
-    public function addhttp($url)
-    {
-        if (!preg_match('~^(?:f|ht)tps?://~i', $url) ) {
-            $url = 'http:/' . $url;
+        // Get favicon from URL
+        if ($result = $this->cURL($faviconURL = $prefix . $domain . '/favicon.ico' . $suffix)) {
+            $this->contentType = 'image/x-icon';
+            $this->faviconURL = $faviconURL;
+            $this->blob = $result;
+        // Get favicon from HTML `<link>`
+        } else if ($result = file_get_contents($prefix . $domain)) {
+            if (
+                stripos($result, '<link ') !== false &&
+                stripos($result, ' href=') !== false &&
+                stripos($result, ' rel=') !== false &&
+                preg_match_all('#<link(?:\s[^<>]+?)?\/?>#i', $result, $m)
+            ) {
+                foreach ($m[0] as $html) {
+                    // Check for `rel="shortcut icon"` and `rel="icon"` string
+                    if (preg_match('#\srel=([\'"]?)(?:apple-touch-icon|msapplication-TileImage|(?:shortcut\s+)?icon)\1#', $html)) {
+                        // Check for `href` attribute
+                        if (preg_match('#\shref=([\'"]?)(.*?)\1#', $html, $m)) {
+                            $faviconURL = $m[2];
+                            // Maybe relative protocol
+                            if (strpos($faviconURL, '//') === 0) {
+                                $faviconURL = $prefix . substr($faviconURL, 2);
+                            // Maybe relative path
+                            } else if (strpos($faviconURL, '/') === 0) {
+                                $faviconURL = $prefix . $domain . $faviconURL;
+                            }
+                            $this->faviconURL = $faviconURL;
+                            if ($result = $this->cURL($faviconURL)) {
+                                // Check for `type` attribute
+                                if (preg_match('#\stype=([\'"]?)(.*?)\1#', $html, $m)) {
+                                    // Set custom favicon type
+                                    $this->contentType = $m[2];
+                                // Else ...
+                                } else {
+                                    $type = pathinfo($favicon, PATHINFO_EXTENSION);
+                                    switch ($type) {
+                                        case 'ico':
+                                            $type = 'x-icon';
+                                        break;
+                                        case 'jpg':
+                                            // <https://stackoverflow.com/a/37266399/1163000>
+                                            $type = 'jpeg';
+                                        break;
+                                    }
+                                    // ... gues it by the file extension
+                                    $this->contentType = 'image/' . $type;
+                                }
+                                $this->blob = $result;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
         }
-        return $url;
+
+        // Last check, return the default favicon!
+        if (!$this->blob) {
+            $this->contentType = 'image/x-icon';
+            $this->faviconURL = null;
+            $this->blob = file_get_contents(__DIR__ . '/' . $this->favicon);
+        }
+
     }
 
-    /**
-     * Proxy with cURL
-     */
-    public function getFavicon($url)
-    {
-        $options = [
-            CURLOPT_FAILONERROR     => true,
-            CURLOPT_FOLLOWLOCATION  => true,
-            CURLOPT_MAXREDIRS       => 2,
-            CURLOPT_USERAGENT       => $this->userAgent . '/' . $this->version,
-            CURLOPT_RETURNTRANSFER  => true,
-            CURLOPT_TIMEOUT         => 15
-        ];
-
-        // TODO: Get favicon from HTML Tag
-
-        $url = parse_url($this->addhttp($url), PHP_URL_HOST);
-
-        if ( isset($_GET['ssl']) ) {
-            $url = 'https://' . $url . '/favicon.ico?ssl=1';
-            $ch = curl_init($url);
+    public function draw() {
+        $this->process();
+        if (!$this->debugMode) {
+            if ($this->expires) {
+                header('Cache-Control: public, max-age=' . $this->expires);
+            } else {
+                header('Cache-Control: no-cache');
+            }
+            if (isset($_GET['raw'])) {
+                header('Content-Type: text/plain');
+                echo $this->blob;
+            } else if (isset($_GET['base64'])) {
+                header('Content-Type: text/plain');
+                echo 'data:' . $this->contentType . ';base64,' . base64_encode($this->blob);
+            } else {
+                header('Content-Type: ' . $this->contentType);
+                echo $this->blob;
+            }
         } else {
-            $url = $url . '/favicon.ico';
-            $ch = curl_init($url);
+            var_dump(
+                $this->contentType,
+                $this->faviconURL,
+                $this->blob
+            );
         }
-
-        if ( isset($_GET['debug'] ) ) {
-            return "<code><strong>curl</strong> $url</code>";
-
-            exit;
-        }
-
-        curl_setopt_array($ch, $options);
-        $url = curl_exec($ch);
-        curl_close($ch);
-
-        // Output with base64
-        if ( isset($_GET['base64']) ) {
-            return '<img src="data:image/x-icon;base64,'. base64_encode($url) .'">';
-
-            exit;
-        }
-
-        // If get nothing, display the default favicon
-        if ($url == false ) {
-            $default = file_get_contents(__DIR__ . '/' . $this->default);
-
-            header('Cache-Control: no-cache');
-
-            return $default;
-
-            exit;
-        }
-
-        return $url;
+        exit;
     }
+
 }

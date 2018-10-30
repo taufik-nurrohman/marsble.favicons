@@ -26,6 +26,8 @@ GET `https://favicons.marsble.com/marsble.com?ssl`
 
 GET `https://favicons.marsble.com/marsble.com?debug`
 
+GET `https://favicons.marsble.com/marsble.com?cache=0`
+
 ## Installation
 
 Clone this repository to your server and serve it with your favorite web server.

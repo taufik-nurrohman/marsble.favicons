@@ -2,7 +2,6 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge, chrome=1">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <title>Favicons API by Marsble</title>
     <link rel="stylesheet" href="https://static.marsble.com/css/errors.css">
@@ -23,14 +22,14 @@
         </p>
 
         <div class="oops"> <img class="emoji" src="https://ajax.marsble.com/libs/twemoji/2.2.3/72x72/1f31e.png" alt="Yeay">
-            <strong>Yeay..</strong>
+            <strong>Yeay&hellip;</strong>
         </div>
 
         <div class="message">
-            <p>Marsble Favicons API is Free Favicons API with Super Fast Global CDN, Proxying Favicon from a domain. Marsble use <strong>favicons.marsble.com</strong> domain to improve Marsble's website features.</p>
+            <p>Marsble Favicons API is Free Favicons API with Super Fast Global CDN, Proxying Favicon from a domain. Marsble use <strong><?php echo $_SERVER['HTTP_HOST']; ?></strong> domain to improve Marsble&rsquo;s website features.</p>
 
             <h2>Usage</h2>
-            <p><code>https://favicons.marsble.com/:domain</code></p>
+            <p><code><?php echo $_SERVER['HTTP_HOST']; ?>/:domain</code></p>
 
             <p>You can use this service to get favicon from a domain. This site is open source and you can contribute on <a href="https://github.com/marsble/favicons">GitHub</a>.</p>
 
