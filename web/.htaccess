@@ -18,7 +18,7 @@
     </FilesMatch>
 </IfModule>
 
-# Rewrite `http://example.com/index.php?foo/bar` to `http://example.com/foo/bar`
+# Rewrite `http://127.0.0.1/index.php?foo/bar` to `http://127.0.0.1/foo/bar`
 <IfModule mod_rewrite.c>
     RewriteEngine on
     RewriteCond %{REQUEST_FILENAME} !-f

@@ -15,38 +15,52 @@
 
 class Favicons {
 
-    const version = '1.2';
+    const version = '1.3';
 
     public $domain = null;
     public $favicon = 'favicon_default.ico'; // Set default favicon
-    public $expires = 86400; // 1 Day
+    public $expires = 86400; // 1 Day as seconds
     public $userAgent = 'MarsbleFavicons';
     public $debugMode = false;
+    public $attempt = 2; // Maximum `curl` access to try
 
-    protected $contentType = 'text/plain';
-    protected $faviconURL = null;
-    protected $blob = null;
+    protected $results = [
+        'blob' => null,
+        'href' => null,
+        'rel' => null,
+        'type' => 'image/x-icon'
+    ];
 
-    public function __construct($domain) {
-        $this->domain = $domain;
+    public function __construct(string $domain) {
+        $this->domain = $this->removeProtocols($domain);
     }
 
-    protected function cURL($url) {
+    /**
+     * Proxy with `curl`
+     */
+    protected function cURL(string $url, string $userAgent = null, int $try = 1) {
+        if ($try > $this->attempt) {
+            return false;
+        }
         $c = curl_init($url);
         curl_setopt_array($c, [
             CURLOPT_FAILONERROR => true,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_MAXREDIRS => 2,
-            CURLOPT_USERAGENT => $this->userAgent . '/' . self::version, // Custom User Agent
+            CURLOPT_USERAGENT => $userAgent ?: $this->userAgent . '/' . self::version,// Custom user agent
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPGET => true,
             CURLOPT_TIMEOUT => 15
         ]);
         $result = curl_exec($c);
         curl_close($c);
-        return $result;
+        // Return the result if success, or try again with the default user agent
+        return $result ?: $this->cURL($url, $_SERVER['HTTP_USER_AGENT'], $try + 1);
     }
 
+    /**
+     * Remove protocol prefix from URL
+     */
     protected function removeProtocols($domain) {
         if (strpos($domain, '://') !== false) {
             return preg_replace('#^(?:f|ht)tps?://#', "", $domain);
@@ -54,13 +68,19 @@ class Favicons {
         return $domain;
     }
 
+    /**
+     * Use `https://` instead of `http://` ?
+     */
     protected function useSSL() {
         return !empty($_GET['ssl']);
     }
 
-    public function process() {
+    /**
+     * Fetch results
+     */
+    protected function fetch() {
 
-        $domain = $this->removeProtocols($this->domain);
+        $domain = $this->domain;
 
         if ($this->useSSL()) {
             $prefix = 'https://';
@@ -71,40 +91,43 @@ class Favicons {
         }
 
         // Get favicon from URL
-        if ($result = $this->cURL($faviconURL = $prefix . $domain . '/favicon.ico' . $suffix)) {
-            $this->contentType = 'image/x-icon';
-            $this->faviconURL = $faviconURL;
-            $this->blob = $result;
+        if ($result = $this->cURL($href = $prefix . $domain . '/favicon.ico' . $suffix)) {
+            $this->results['blob'] = $result;
+            $this->results['href'] = $href;
+            $this->results['rel'] = 'icon';
+            $this->results['type'] = 'image/x-icon';
         // Get favicon from HTML `<link>`
-        } else if ($result = file_get_contents($prefix . $domain)) {
+        } else if ($result = $this->cURL($prefix . $domain)) {
             if (
                 stripos($result, '<link ') !== false &&
-                stripos($result, ' href=') !== false &&
-                stripos($result, ' rel=') !== false &&
+                stripos($result, 'href=') !== false &&
+                stripos($result, 'rel=') !== false &&
                 preg_match_all('#<link(?:\s[^<>]+?)?\/?>#i', $result, $m)
             ) {
                 foreach ($m[0] as $html) {
-                    // Check for `rel="shortcut icon"` and `rel="icon"` string
-                    if (preg_match('#\srel=([\'"]?)(?:apple-touch-icon|msapplication-TileImage|(?:shortcut\s+)?icon)\1#', $html)) {
+                    // Check for `rel` attribute
+                    $value = 'apple-touch-icon(?:-precomposed)?|msapplication-TileImage|(?:shortcut\s+)?icon';
+                    if (stripos($html, 'rel=') !== false && preg_match('#\srel=([\'"]?)(' . $value . ')\1#i', $html)) {
+                        $this->results['rel'] = $m[2];
                         // Check for `href` attribute
-                        if (preg_match('#\shref=([\'"]?)(.*?)\1#', $html, $m)) {
-                            $faviconURL = $m[2];
+                        if (stripos($html, 'href=') !== false && preg_match('#\shref=([\'"]?)(.*?)\1#i', $html, $m)) {
+                            $href = $m[2];
                             // Maybe relative protocol
-                            if (strpos($faviconURL, '//') === 0) {
-                                $faviconURL = $prefix . substr($faviconURL, 2);
+                            if (strpos($href, '//') === 0) {
+                                $href = $prefix . substr($href, 2);
                             // Maybe relative path
-                            } else if (strpos($faviconURL, '/') === 0) {
-                                $faviconURL = $prefix . $domain . $faviconURL;
+                            } else if (strpos($href, '/') === 0) {
+                                $href = $prefix . $domain . $href;
                             }
-                            $this->faviconURL = $faviconURL;
-                            if ($result = $this->cURL($faviconURL)) {
+                            $this->results['href'] = $href;
+                            if ($result = $this->cURL($href)) {
                                 // Check for `type` attribute
-                                if (preg_match('#\stype=([\'"]?)(.*?)\1#', $html, $m)) {
+                                if (stripos($html, 'type=') !== false && preg_match('#\stype=([\'"]?)(.*?)\1#i', $html, $m)) {
                                     // Set custom favicon type
-                                    $this->contentType = $m[2];
+                                    $this->results['type'] = $m[2];
                                 // Else ...
                                 } else {
-                                    $type = pathinfo($favicon, PATHINFO_EXTENSION);
+                                    $type = pathinfo($href, PATHINFO_EXTENSION);
                                     switch ($type) {
                                         case 'ico':
                                             $type = 'x-icon';
@@ -114,10 +137,10 @@ class Favicons {
                                             $type = 'jpeg';
                                         break;
                                     }
-                                    // ... gues it by the file extension
-                                    $this->contentType = 'image/' . $type;
+                                    // ... guess it by the file extension
+                                    $this->results['type'] = 'image/' . $type;
                                 }
-                                $this->blob = $result;
+                                $this->results['blob'] = $result;
                             }
                             break;
                         }
@@ -127,40 +150,95 @@ class Favicons {
         }
 
         // Last check, return the default favicon!
-        if (!$this->blob) {
-            $this->contentType = 'image/x-icon';
-            $this->faviconURL = null;
-            $this->blob = file_get_contents(__DIR__ . '/' . $this->favicon);
+        if (!$this->results['blob']) {
+            $this->results['blob'] = file_get_contents(__DIR__ . '/' . $this->favicon);
+            $this->results['href'] = null;
+            $this->results['rel'] = 'icon';
+            $this->results['type'] = 'image/x-icon';
         }
 
     }
 
-    public function draw() {
-        $this->process();
+    /**
+     * Set correct HTTP headers for favicon image
+     */
+    protected function setHeaders(string $type = null) {
+        $this->fetch();
         if (!$this->debugMode) {
             if ($this->expires) {
                 header('Cache-Control: public, max-age=' . $this->expires);
             } else {
                 header('Cache-Control: no-cache');
             }
-            if (isset($_GET['raw'])) {
-                header('Content-Type: text/plain');
-                echo $this->blob;
-            } else if (isset($_GET['base64'])) {
-                header('Content-Type: text/plain');
-                echo 'data:' . $this->contentType . ';base64,' . base64_encode($this->blob);
-            } else {
-                header('Content-Type: ' . $this->contentType);
-                echo $this->blob;
-            }
+            header('Content-Type: ' . $type);
         } else {
-            var_dump(
-                $this->contentType,
-                $this->faviconURL,
-                $this->blob
-            );
+            header('Content-Type: text/plain');
+            header('Cache-Control: no-cache');
         }
+    }
+
+    /**
+     * Default
+     */
+    public function draw() {
+        $this->setHeaders($this->results['type']);
+        echo $this->results['blob'];
         exit;
+    }
+
+    /**
+     * Draw as raw favicon Blob
+     */
+    public function drawAsRaw() {
+        $this->setHeaders('text/plain');
+        echo $this->results['blob'];
+        exit;
+    }
+
+    /**
+     * Draw as Base64
+     */
+    public function drawAsBase64() {
+        $this->setHeaders('text/plain');
+        echo 'data:' . $this->results['type'] . ';base64,' . base64_encode($this->results['blob']);
+        exit;
+    }
+
+    /**
+     * Draw as JSON
+     */
+    public function drawAsJson() {
+        $this->setHeaders('application/json');
+        unset($this->results['blob']);
+        ksort($this->results);
+        echo json_encode($this->results);
+        exit;
+    }
+
+    /**
+     * Draw as HTML
+     */
+    public function drawAsHtml(string $x = "") {
+        $this->setHeaders('text/html');
+        unset($this->results['blob']);
+        if (!$this->results['href']) {
+            echo '<!-- error loading favicon from `http' . ($this->useSSL() ? 's' : "") . '://' . $this->domain . '` -->';
+            exit;
+        }
+        ksort($this->results);
+        $html = '<link';
+        foreach ($this->results as $attr => $value) {
+            $html .= ' ' . $attr . '="' . $value . '"';
+        }
+        echo $html . $x . '>';
+        exit;
+    }
+
+    /**
+     * Draw as XHTML
+     */
+    public function drawAsXhtml() {
+        return $this->drawAsHtml(' /');
     }
 
 }

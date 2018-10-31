@@ -12,14 +12,14 @@
  * Settings
  */
 
-define('MARSBLE_DEBUG', isset($_GET['debug']));
+define('MARSBLE_DEBUG', false);
 
-// <https://stackoverflow.com/q/68651/1163000>
-// <https://stackoverflow.com/a/2183140/1163000>
-// TODO: Allow underscores in domain name
-$k = array_keys(isset($_GET) ? $_GET : []);
-define('MARSBLE_URL_PATH', strtr(array_shift($k), '_', '.'));
-define('MARSBLE_URL_QUERY', http_build_query($_GET));
+$parts = explode('&', $_SERVER['QUERY_STRING'], 2);
+$path = array_shift($parts);
+$query = array_shift($parts);
+
+define('MARSBLE_URL_PATH', $path);
+define('MARSBLE_URL_QUERY', $query ? '?' . $query : null);
 
 
 /**
@@ -31,6 +31,17 @@ function is_home() {
 }
 
 
+/**
+ * Aliases
+ */
+
+foreach (['base64', 'html', 'json', 'raw', 'xhtml'] as $output) {
+    if (isset($_GET[$output])) {
+        $_GET['output'] = $output;
+        break;
+    }
+}
+
 error_reporting(MARSBLE_DEBUG ? E_ALL | E_STRICT : 0);
 
 if (is_home()) {
@@ -38,10 +49,14 @@ if (is_home()) {
 } else {
     require __DIR__ . '/class-favicons.php';
     $favicon = new Favicons(MARSBLE_URL_PATH);
-    // `http://127.0.0.1/example.com?cache=false`
-    if (isset($_GET['cache']) && !$_GET['cache']) {
-        $favicon->expires = 0;
-    }
     $favicon->debugMode = MARSBLE_DEBUG;
-    $favicon->draw();
+    // `http://127.0.0.1/example.com?cache=0`
+    if (isset($_GET['cache'])) {
+        $favicon->expires = (int) $_GET['cache'];
+    }
+    if (isset($_GET['output']) && method_exists($favicon, $draw = 'drawAs' . ucfirst($_GET['output']))) {
+        $favicon->{$draw}();
+    } else {
+        $favicon->draw();
+    }
 }
