@@ -58,7 +58,7 @@ GET `https://favicons.marsble.com/marsble.com?xhtml`
 ### Force to Use SSL
 
 ~~~ .txt
-GET `https://favicons.marsble.com/marsble.com?json?ssl=1`
+GET `https://favicons.marsble.com/marsble.com?ssl=1`
 ~~~
 
 ### Disable Cache
